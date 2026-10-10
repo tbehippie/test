@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>아침 체크리스트</title>
+<style>
+:root{--bg:#faf7f2;--card:#fff;--tx:#2b2a28;--sub:#8a857c;--ac:#e8863a;--ac2:#fbe6d2;--bd:#ece6db;--ok:#4a9d6b;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1a18;--card:#262522;--tx:#f1ede6;--sub:#9a958b;--ac:#f0975a;--ac2:#3a2c20;--bd:#34322e;--ok:#6cc08b}}
+:root[data-theme="dark"]{--bg:#1b1a18;--card:#262522;--tx:#f1ede6;--sub:#9a958b;--ac:#f0975a;--ac2:#3a2c20;--bd:#34322e;--ok:#6cc08b}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;line-height:1.45}
+.wrap{max-width:480px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:4px 0 2px}
+.date{color:var(--sub);font-size:14px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.chips{display:flex;gap:8px;margin:14px 0}
+.chip{flex:1;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:10px 12px}
+.chip b{display:block;font-size:20px}
+.chip span{font-size:12px;color:var(--sub)}
+.bar{height:10px;background:var(--ac2);border-radius:99px;overflow:hidden;margin:6px 0 4px}
+.bar i{display:block;height:100%;width:0;background:var(--ac);transition:width .3s}
+.msg{font-size:14px;color:var(--ok);min-height:20px;font-weight:600}
+.group{margin-top:18px}
+.group h2{font-size:13px;color:var(--sub);margin:0 0 6px;letter-spacing:.02em}
+.item{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:13px 14px;margin-bottom:8px;cursor:pointer;user-select:none}
+.item .box{width:24px;height:24px;border-radius:8px;border:2px solid var(--bd);flex:none;display:grid;place-items:center;font-size:15px;color:#fff}
+.item.done .box{background:var(--ok);border-color:var(--ok)}
+.item.done .t{color:var(--sub);text-decoration:line-through}
+.t{flex:1}
+.del{border:0;background:none;color:#d55;font-size:18px;cursor:pointer;padding:0 4px}
+.add{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
+.add input,.add select{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:11px 12px}
+.add input{flex:1;min-width:140px}
+button.p{font:inherit;background:var(--ac);color:#fff;border:0;border-radius:12px;padding:11px 16px;font-weight:600;cursor:pointer}
+button.g{font:inherit;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:7px 11px;cursor:pointer;font-size:13px}
+.foot{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.week{display:flex;gap:6px;margin-top:6px}
+.week div{flex:1;text-align:center;font-size:11px;color:var(--sub)}
+.week em{display:block;height:34px;border-radius:8px;background:var(--ac2);margin-bottom:3px;position:relative;overflow:hidden}
+.week em u{position:absolute;left:0;right:0;bottom:0;background:var(--ac)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div><h1 id="greet">좋은 아침이에요 ☀️</h1><div class="date" id="date"></div></div>
+    <button class="g" id="edit">편집</button>
+  </div>
+  <div class="chips">
+    <div class="chip"><b id="cnt">0/0</b><span>오늘 완료</span></div>
+    <div class="chip"><b id="streak">0일</b><span>연속 달성</span></div>
+  </div>
+  <div class="bar"><i id="fill"></i></div>
+  <div class="msg" id="msg"></div>
+  <div id="list"></div>
+  <div class="add" id="addbox" hidden>
+    <input id="newtxt" placeholder="새 항목 (예: 비타민 먹기)" maxlength="40">
+    <select id="newgrp"></select>
+    <button class="p" id="addbtn">추가</button>
+  </div>
+  <div class="group"><h2>최근 7일</h2><div class="week" id="week"></div></div>
+  <div class="foot"><button class="g" id="reset">오늘 체크 초기화</button></div>
+</div>
+<script>
+const GROUPS=["기상 직후","씻고 준비","건강","나가기 전"];
+const DEFAULTS=[
+ ["물 한 컵 마시기",0],["스트레칭 5분",0],["세수·양치",1],["샤워",1],["옷 챙겨 입기",1],
+ ["영양제·약 챙기기",2],["아침 식사",2],["오늘 일정 확인",3],["가스불·전등 끄기",3],["지갑·폰·키 챙기기",3]
+].map((d,i)=>({id:"d"+i,text:d[0],g:d[1]}));
+const $=id=>document.getElementById(id);
+const store={
+ get(k,f){try{const v=localStorage.getItem(k);return v?JSON.parse(v):f}catch(e){return f}},
+ set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+};
+const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const today=ymd(new Date());
+let routine=store.get("mc:routine",null)||DEFAULTS;
+let done=new Set(store.get("mc:done:"+today,[]));
+let log=store.get("mc:log",{});
+let editing=false;
+
+function save(){
+ store.set("mc:routine",routine);
+ store.set("mc:done:"+today,[...done]);
+ const total=routine.length,n=routine.filter(r=>done.has(r.id)).length;
+ log[today]={n,total};store.set("mc:log",log);
+}
+function streak(){
+ let s=0,d=new Date();
+ const full=k=>log[k]&&log[k].total>0&&log[k].n>=log[k].total;
+ if(!full(ymd(d)))d.setDate(d.getDate()-1);
+ while(full(ymd(d))){s++;d.setDate(d.getDate()-1)}
+ return s;
+}
+function render(){
+ const wd=["일","월","화","수","목","금","토"],now=new Date();
+ $("date").textContent=`${now.getMonth()+1}월 ${now.getDate()}일 ${wd[now.getDay()]}요일`;
+ const h=now.getHours();
+ $("greet").textContent=h<5?"아직 이른 새벽이에요 🌙":h<11?"좋은 아침이에요 ☀️":"오늘도 체크해볼까요 ✅";
+ const list=$("list");list.innerHTML="";
+ GROUPS.forEach((gn,gi)=>{
+  const items=routine.filter(r=>r.g===gi);
+  if(!items.length)return;
+  const box=document.createElement("div");box.className="group";
+  box.innerHTML=`<h2>${gn}</h2>`;
+  items.forEach(r=>{
+   const el=document.createElement("div");
+   el.className="item"+(done.has(r.id)?" done":"");
+   el.innerHTML=`<span class="box">${done.has(r.id)?"✓":""}</span><span class="t"></span>`;
+   el.querySelector(".t").textContent=r.text;
+   if(editing){
+    const b=document.createElement("button");b.className="del";b.textContent="✕";b.setAttribute("aria-label","삭제");
+    b.onclick=e=>{e.stopPropagation();routine=routine.filter(x=>x.id!==r.id);done.delete(r.id);save();render()};
+    el.appendChild(b);
+   }else el.onclick=()=>{done.has(r.id)?done.delete(r.id):done.add(r.id);save();render()};
+   box.appendChild(el);
+  });
+  list.appendChild(box);
+ });
+ const total=routine.length,n=routine.filter(r=>done.has(r.id)).length;
+ $("cnt").textContent=n+"/"+total;
+ $("fill").style.width=(total?n/total*100:0)+"%";
+ $("streak").textContent=streak()+"일";
+ $("msg").textContent=total&&n===total?"🎉 오늘 아침 루틴 완료!":"";
+ $("addbox").hidden=!editing;
+ $("edit").textContent=editing?"완료":"편집";
+ const wk=$("week");wk.innerHTML="";
+ for(let i=6;i>=0;i--){
+  const d=new Date();d.setDate(d.getDate()-i);
+  const l=log[ymd(d)],pct=l&&l.total?Math.round(l.n/l.total*100):0;
+  const c=document.createElement("div");
+  c.innerHTML=`<em title="${pct}%"><u style="height:${pct}%"></u></em>${wd[d.getDay()]}`;
+  wk.appendChild(c);
+ }
+}
+$("edit").onclick=()=>{editing=!editing;render()};
+$("addbtn").onclick=()=>{
+ const t=$("newtxt").value.trim();if(!t)return;
+ routine.push({id:"u"+Date.now(),text:t,g:+$("newgrp").value});
+ $("newtxt").value="";save();render();
+};
+$("newtxt").addEventListener("keydown",e=>{if(e.key==="Enter")$("addbtn").click()});
+$("reset").onclick=()=>{done=new Set();save();render()};
+GROUPS.forEach((g,i)=>{const o=document.createElement("option");o.value=i;o.textContent=g;$("newgrp").appendChild(o)});
+save();render();
+</script>
+</body>
+</html>
